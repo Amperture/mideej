@@ -1,0 +1,22 @@
+/ {
+  mideej_midi: usb_midi {
+    compatible = "zephyr,midi2-device";
+    status = "okay";
+    #address-cells = <1>;
+    #size-cells = <1>;
+    label = "Amperture Enginerding Midi Fader Board";
+    midi_in_out@0{
+      reg = <0 1>;
+      protocol = "midi1-up-to-128b";
+      label = "MIDI-IN-OUT";
+    };
+  };
+};
+
+/*
+&zephyr_udc0{
+  cdc_acm_uart0 {
+    compatible = "zephyr,cdc-acm-uart";
+  };
+};
+*/
