@@ -13,10 +13,26 @@
   };
 };
 
-/*
-&zephyr_udc0{
-  cdc_acm_uart0 {
-    compatible = "zephyr,cdc-acm-uart";
+// Add custom pins to "pinctrl" node
+&pinctrl {
+  //i2c bus 0 config
+  i2c0_custom_pins: i2c0_custom_pins{
+    group1 {
+      pinmux = <I2C0_SDA_GPIO2>, <I2C0_SCL_GPIO1>;
+      bias-pull-up;
+      drive-open-drain;
+      output-high;
+    };
   };
 };
-*/
+
+&i2c0 {
+    status = "okay";
+    generic_i2c_dev: generic_dev@48 {
+        compatible = "vnd,generic-i2c-device";
+        reg = <0x48>;
+    };
+    clock-frequency = <I2C_BITRATE_STANDARD>;
+    pinctrl-0 = <&i2c0_custom_pins>;
+    pinctrl-names = "default";
+};
