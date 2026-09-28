@@ -39,7 +39,7 @@ int main(void) {
       printk("i2c error pin: %d\r\n", err);
       printk("ADC PIN %d READ VALUE RAW: %d \r\n", adc_pin, adc_read_val);
       struct midi_ump ump_packet =
-          construct_packet(2, 0, 0xB, adc_pin, 7, adc_read_val);
+          construct_packet(2, 0, 0xB, adc_pin, 7, adc_read_val >> 1);
       usbd_midi_send(mideej_midi, ump_packet);
       k_sleep(K_MSEC(100));
     }
