@@ -24,15 +24,24 @@ int main(void) {
     return 1;
   }
   uint8_t adc_read_val = 0x5A;
-  uint8_t command_byte = 0x84;
 
   while (true) {
-    int err = i2c_write_read_dt(&ads7830, &command_byte, 1, &adc_read_val, 1);
-    printk("i2c error: %d\r\n", err);
-    printk("ADC READ VALUE RAW: %d \r\n", adc_read_val);
-    struct midi_ump ump_packet =
-        construct_packet(2, 0, 0xB, 0, 7, adc_read_val);
-    usbd_midi_send(mideej_midi, ump_packet);
-    k_sleep(K_MSEC(100));
+    uint8_t adc_pin = 0x00;
+    uint8_t max_pin = 1;
+
+    for (adc_pin = 0x00; adc_pin <= max_pin; adc_pin++) {
+      // Default Command Byte: Single-Ended, ADC on, Internal Reference Off
+      // Default to Pin 0
+      uint8_t pin_sel = ((adc_pin & 1) << 2 | (adc_pin >> 1));
+      uint8_t command_byte = 0x84 | (pin_sel << 4);
+
+      int err = i2c_write_read_dt(&ads7830, &command_byte, 1, &adc_read_val, 1);
+      printk("i2c error pin: %d\r\n", err);
+      printk("ADC PIN %d READ VALUE RAW: %d \r\n", adc_pin, adc_read_val);
+      struct midi_ump ump_packet =
+          construct_packet(2, 0, 0xB, adc_pin, 7, adc_read_val);
+      usbd_midi_send(mideej_midi, ump_packet);
+      k_sleep(K_MSEC(100));
+    }
   }
 }
