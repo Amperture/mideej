@@ -24,12 +24,11 @@ int main(void) {
     return 1;
   }
   uint8_t adc_read_val = 0x5A;
+  uint8_t max_pin = 1;
 
   while (true) {
-    uint8_t adc_pin = 0x00;
-    uint8_t max_pin = 1;
 
-    for (adc_pin = 0x00; adc_pin <= max_pin; adc_pin++) {
+    for (uint8_t adc_pin = 0x00; adc_pin <= max_pin; adc_pin++) {
       // Default Command Byte: Single-Ended, ADC on, Internal Reference Off
       // Default to Pin 0
       uint8_t pin_sel = ((adc_pin & 1) << 2 | (adc_pin >> 1));
