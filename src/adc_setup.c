@@ -49,6 +49,11 @@ void adc_read_thread(void *p1, void *p2, void *p3) {
   printk("ADC Read Thread Initializing\r\n");
   struct adc_read_value tx_packet;
 
+  if (adc_setup() != 0) {
+    printk("Failure to initialize ADC\r\n");
+    return -ENO;
+  }
+
   // Make sure the adc is set up
   while (1) {
     if (k_mutex_lock(&adc_mutex, K_FOREVER) == 0) {
