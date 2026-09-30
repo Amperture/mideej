@@ -1,36 +1,34 @@
 #include "adc_setup.h"
+#include "config.h"
 #include "midi_setup.h"
 #include "usb_setup.h"
 #include "zephyr/audio/midi.h"
 #include <stdint.h>
 #include <zephyr/kernel.h>
 #include <zephyr/sys/printk.h>
-#include <zephyr/usb/usbd.h>
+// #include <zephyr/usb/usbd.h>
 
+/* Legacy data structures
 static uint8_t adc_channels_used[] = {0, 1};
 static uint8_t adc_channel_values[] = {0, 0};
 static uint8_t adc_read_val = 0;
+*/
 
 int main(void) {
-
+  /* TODO: re-enable USB and MIDI once ADC threads are working
   if (usb_setup() != 0) {
     printk("Something went wrong with USB setup!\r\n");
   }
+  const struct device *mideej_midi = midi_setup();
+  */
 
   if (adc_setup() != 0) {
-    printk("Something went wrong with ADC setup!\r\n");
-  }
-  const struct device *mideej_midi = midi_setup();
-
-  uint8_t channel_loop_len =
-      sizeof(adc_channels_used) / sizeof(adc_channels_used[0]);
-
-  if (channel_loop_len !=
-      (sizeof(adc_channel_values) / sizeof(adc_channel_values[0]))) {
-    printk("ERR: ADC channels list and values must have same length");
+    printk("Failure to initialize ADC\r\n");
     return 1;
   }
-
+  printk("thread is running...");
+  return 0;
+  /* legacy loop hold onto this
   while (true) {
     for (uint8_t i = 0; i < channel_loop_len; i++) {
 
@@ -46,4 +44,5 @@ int main(void) {
       k_sleep(K_MSEC(10));
     }
   }
+  */
 }
