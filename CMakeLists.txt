@@ -10,6 +10,7 @@ target_sources(
   src/main.c
   src/usb_setup.c
   src/midi_setup.c
+  src/adc_setup.c
 )
 
 target_include_directories(app PRIVATE
