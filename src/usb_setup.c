@@ -1,6 +1,9 @@
 #include "usb_setup.h"
+#include <zephyr/kernel.h>
 #include <zephyr/sys/printk.h>
 #include <zephyr/usb/usbd.h>
+
+K_MUTEX_DEFINE(usb_mutex);
 
 /* This line creates a usbd_context struct, no enumeration is happening as of
  * yet.

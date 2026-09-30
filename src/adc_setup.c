@@ -1,5 +1,6 @@
 #include "adc_setup.h"
 #include "config.h"
+#include "midi_setup.h"
 #include <stdint.h>
 #include <stdlib.h>
 #include <zephyr/drivers/i2c.h>
@@ -38,15 +39,15 @@ uint8_t adc_se_read_channel(uint8_t ch, uint8_t *p_value) {
 // this task is the only one handling the ADC, but using the mutex anyway
 // as a learning experience.
 uint8_t adc_channels_list[] = {ADC_CHANNELS_USED};
-struct adc_channel_value {
+struct adc_read_value {
   uint8_t index;
   uint8_t channel;
   uint8_t value;
 };
-K_MSGQ_DEFINE(adc_read_msgq, sizeof(struct adc_channel_value), 64, 1);
+K_MSGQ_DEFINE(adc_read_msgq, sizeof(struct adc_read_value), 64, 1);
 void adc_read_thread(void *p1, void *p2, void *p3) {
   printk("ADC Read Thread Initializing\r\n");
-  struct adc_channel_value tx_packet;
+  struct adc_read_value tx_packet;
 
   // Make sure the adc is set up
   while (1) {
@@ -58,13 +59,15 @@ void adc_read_thread(void *p1, void *p2, void *p3) {
         adc_se_read_channel(tx_packet.channel, &tx_packet.value);
         int ret = k_msgq_put(&adc_read_msgq, &tx_packet, K_NO_WAIT);
         if (ret != 0) {
-          printk("ADC Raw Queue full.");
+          printk("ADC Raw Queue full.\r\n");
         }
       }
       k_mutex_unlock(&adc_mutex);
       // printk("adc mutex is unlocked\r\n");
     }
     // K_NO_WAIT: if queue is full, skip or handle immediately
+    // May not be needed, if the midi parse thread blocks and is higher
+    // priority.
     k_sleep(K_MSEC(2));
   }
 }
@@ -77,8 +80,9 @@ struct midi_channel_value {
 };
 void adc_parse_thread(void *p1, void *p2, void *p3) {
   printk("ADC Parse Thread Initializing\r\n");
-  struct adc_channel_value rx_packet;
+  struct adc_read_value rx_packet;
   struct midi_channel_value midi_values[ADC_CHANNELS_LENGTH];
+  struct midi_send_value tx_packet;
 
   // Initialize the last_sent_midi_values to 0
   for (uint8_t i = 0; i < ADC_CHANNELS_LENGTH; i++) {
@@ -95,15 +99,32 @@ void adc_parse_thread(void *p1, void *p2, void *p3) {
       // Apply a Deadband and Hysteresis
       if (rx_packet.value > current_val + ADC_DEADBAND) {
         midi_values[rx_packet.index].value = rx_packet.value - ADC_DEADBAND;
+
         printk("New Value for Channel %d: %d\r\n", rx_packet.channel,
                rx_packet.value - ADC_DEADBAND);
+
+        tx_packet.midi_value = midi_values[rx_packet.index].value >> 1;
+        tx_packet.midi_channel = midi_values[rx_packet.index].channel;
+        int ret = k_msgq_put(&midi_send_msgq, &tx_packet, K_NO_WAIT);
+        if (ret != 0) {
+          printk("MIDI Send Packet Queue full.");
+        }
+
       } else if (rx_packet.value < current_val - ADC_DEADBAND) {
         midi_values[rx_packet.index].value = rx_packet.value + ADC_DEADBAND;
         printk("New Value for Channel %d: %d\r\n", rx_packet.channel,
                rx_packet.value + ADC_DEADBAND);
+
+        tx_packet.midi_value = midi_values[rx_packet.index].value >> 1;
+        tx_packet.midi_channel = midi_values[rx_packet.index].channel;
+        int ret = k_msgq_put(&midi_send_msgq, &tx_packet, K_NO_WAIT);
+        if (ret != 0) {
+          printk("MIDI Send Packet Queue full.\r\n");
+        }
       }
     };
-    k_sleep(K_MSEC(1));
+    // May not be needed, if the midi parse thread blocks and is higher
+    // priority. k_sleep(K_MSEC(1));
   }
 }
 K_THREAD_DEFINE(adc_parse_thread_id, ADC_PARSE_TASK_STACK_SIZE,
@@ -116,7 +137,7 @@ uint8_t adc_se_read_sequence(uint8_t *arr_ch, uint8_t *arr_values,
 
   for (uint8_t i = 0; i < len; i++) {
     if (adc_se_read_channel(arr_ch[i], &arr_values[i]) != 0) {
-      printk("Something went wrong reading ADC channel %d", arr_ch[i]);
+      printk("Something went wrong reading ADC channel %d\r\n", arr_ch[i]);
       return 1;
     };
   }
