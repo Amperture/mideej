@@ -12,8 +12,8 @@
 // Currently using the ADS7830 in single-ended mode. Channel selection
 // is a little wonky, but this rearranges the bits as necessary.
 // Run it with an OR operation to bitmask against a command byte.
-#define ADS7830_SINGLE_ENDED_MODE (uint8_t)(1u << 7)
 #define ADS7830_SE_CHANNEL_SELECT(x) (uint8_t)(((x & 1) << 2 | (x >> 1)) << 4)
+#define ADS7830_SINGLE_ENDED_MODE (uint8_t)(1u << 7)
 #define ADS7830_POWER_DOWN_INTREF_AND_ADC 0
 #define ADS7830_POWER_DOWN_INTREF (uint8_t)(1u << 2)
 #define ADS7830_POWER_DOWN_ADC (uint8_t)(2u << 2)
