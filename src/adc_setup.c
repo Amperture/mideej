@@ -51,7 +51,7 @@ void adc_read_thread(void *p1, void *p2, void *p3) {
 
   if (adc_setup() != 0) {
     printk("Failure to initialize ADC\r\n");
-    return -ENO;
+    return;
   }
 
   // Make sure the adc is set up

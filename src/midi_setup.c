@@ -14,7 +14,7 @@ struct midi_ump construct_packet(uint8_t type, uint8_t group, uint8_t command,
   return packet;
 }
 
-const struct device *midi_setup(void) {
+struct device *midi_setup(void) {
 
   // We need to grab the USB device so we can send packets thru it.
   const struct device *mideej_midi = DEVICE_DT_GET(DT_NODELABEL(mideej_midi));
