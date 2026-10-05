@@ -91,7 +91,7 @@ void adc_parse_thread(void *p1, void *p2, void *p3) {
 
   // Initialize the last_sent_midi_values to 200
   for (uint8_t i = 0; i < ARRAY_SIZE(adc_channels_list); i++) {
-    // valid MIDI CC 2.0 values only go from 0-127, if we set initial values
+    // valid MIDI CC 1.0 values only go from 0-127, if we set initial values
     // to something outside that range, we can guarantee the first
     // value read on startup gets sent. Hence initializing to 200
 
