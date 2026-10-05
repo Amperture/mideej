@@ -46,18 +46,22 @@ void midi_send_thread(void *p1, void *p2, void *p3) {
     printk("Something went wrong with USB setup!\r\n");
   }
 
-  // TODO: re-enable USB and MIDI once ADC threads are working
   const struct device *mideej_midi = midi_setup();
   printk("MIDI device initialized\r\n");
 
   while (1) {
+    printk("Attempting to pull from the MIDI msgq.\r\n");
     int ret = k_msgq_get(&midi_send_msgq, &midi_rx_packet, K_FOREVER);
     if (ret == 0) {
+      printk("Valid message found, sending over USB now.\r\n");
       struct midi_ump ump_packet =
           construct_packet(2, 0, 0xB, midi_rx_packet.midi_channel,
                            MIDI_CONTROLLER, midi_rx_packet.midi_value);
       if (k_mutex_lock(&usb_mutex, K_FOREVER) == 0) {
-        usbd_midi_send(mideej_midi, ump_packet);
+        int usbd_ret = usbd_midi_send(mideej_midi, ump_packet);
+        if (usbd_ret != 0) {
+          printk("USB MIDI packet unsuccessful\r\n");
+        }
         k_mutex_unlock(&usb_mutex);
       }
     };

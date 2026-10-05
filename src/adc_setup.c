@@ -57,8 +57,7 @@ void adc_read_thread(void *p1, void *p2, void *p3) {
   // Make sure the adc is set up
   while (1) {
     if (k_mutex_lock(&adc_mutex, K_FOREVER) == 0) {
-      // printk("adc mutex is locked\r\n");
-      for (uint8_t i = 0; i < ADC_CHANNELS_LENGTH; i++) {
+      for (uint8_t i = 0; i < ARRAY_SIZE(adc_channels_list); i++) {
         tx_packet.index = i;
         tx_packet.channel = adc_channels_list[i];
         adc_se_read_channel(tx_packet.channel, &tx_packet.value);
@@ -68,7 +67,6 @@ void adc_read_thread(void *p1, void *p2, void *p3) {
         }
       }
       k_mutex_unlock(&adc_mutex);
-      // printk("adc mutex is unlocked\r\n");
     }
     // K_NO_WAIT: if queue is full, skip or handle immediately
     // May not be needed, if the midi parse thread blocks and is higher
@@ -86,44 +84,68 @@ struct midi_channel_value {
 void adc_parse_thread(void *p1, void *p2, void *p3) {
   printk("ADC Parse Thread Initializing\r\n");
   struct adc_read_value rx_packet;
-  struct midi_channel_value midi_values[ADC_CHANNELS_LENGTH];
-  struct midi_send_value tx_packet;
+  static struct midi_send_value tx_packet;
+  static struct midi_send_value last_sent[ARRAY_SIZE(adc_channels_list)];
 
-  // Initialize the last_sent_midi_values to 0
-  for (uint8_t i = 0; i < ADC_CHANNELS_LENGTH; i++) {
-    midi_values[i].channel = adc_channels_list[i];
-    midi_values[i].value = 0;
+  struct midi_channel_value held_values[ARRAY_SIZE(adc_channels_list)];
+
+  // Initialize the last_sent_midi_values to 200
+  for (uint8_t i = 0; i < ARRAY_SIZE(adc_channels_list); i++) {
+    // valid MIDI CC 2.0 values only go from 0-127, if we set initial values
+    // to something outside that range, we can guarantee the first
+    // value read on startup gets sent. Hence initializing to 200
+
+    held_values[i].channel = adc_channels_list[i];
+    held_values[i].value = 200;
+    last_sent[i].midi_channel = adc_channels_list[i];
+    last_sent[i].midi_value = 200;
   }
 
   while (1) {
+    // Attempt to clean up and send current values if the queue was full on
+    // first send
+    for (uint8_t i = 0; i < ARRAY_SIZE(adc_channels_list); i++) {
+      if ((held_values[i].value >> 1) != last_sent[i].midi_value) {
+        tx_packet.midi_value = held_values[i].value >> 1;
+        tx_packet.midi_channel = held_values[i].channel;
+        int ret = k_msgq_put(&midi_send_msgq, &tx_packet, K_NO_WAIT);
+        if (ret == 0) {
+          last_sent[i].midi_channel = tx_packet.midi_channel;
+          last_sent[i].midi_value = tx_packet.midi_value;
+        } else {
+          printk("MIDI Send Packet Queue _STILL_ full.\r\n");
+        }
+      }
+    };
+
     int ret = k_msgq_get(&adc_read_msgq, &rx_packet, K_FOREVER);
     if (ret == 0) {
 
-      uint8_t current_val = midi_values[rx_packet.index].value;
+      uint8_t current_val = held_values[rx_packet.index].value;
 
       // Apply a Deadband and Hysteresis
       if (rx_packet.value > current_val + ADC_DEADBAND) {
-        midi_values[rx_packet.index].value = rx_packet.value - ADC_DEADBAND;
-
+        held_values[rx_packet.index].value = rx_packet.value - ADC_DEADBAND;
         printk("New Value for Channel %d: %d\r\n", rx_packet.channel,
                rx_packet.value - ADC_DEADBAND);
-
-        tx_packet.midi_value = midi_values[rx_packet.index].value >> 1;
-        tx_packet.midi_channel = midi_values[rx_packet.index].channel;
-        int ret = k_msgq_put(&midi_send_msgq, &tx_packet, K_NO_WAIT);
-        if (ret != 0) {
-          printk("MIDI Send Packet Queue full.");
-        }
-
       } else if (rx_packet.value < current_val - ADC_DEADBAND) {
-        midi_values[rx_packet.index].value = rx_packet.value + ADC_DEADBAND;
+        held_values[rx_packet.index].value = rx_packet.value + ADC_DEADBAND;
         printk("New Value for Channel %d: %d\r\n", rx_packet.channel,
                rx_packet.value + ADC_DEADBAND);
+      }
 
-        tx_packet.midi_value = midi_values[rx_packet.index].value >> 1;
-        tx_packet.midi_channel = midi_values[rx_packet.index].channel;
+      if ((held_values[rx_packet.index].value >> 1) !=
+          last_sent[rx_packet.index].midi_value) {
+        // Prepare to send TX Packet to USB thread.
+        tx_packet.midi_value = held_values[rx_packet.index].value >> 1;
+        tx_packet.midi_channel = held_values[rx_packet.index].channel;
+
+        // Send TX thread to MIDI packet. If successful, record last_sent
         int ret = k_msgq_put(&midi_send_msgq, &tx_packet, K_NO_WAIT);
-        if (ret != 0) {
+        if (ret == 0) {
+          last_sent[rx_packet.index].midi_channel = tx_packet.midi_channel;
+          last_sent[rx_packet.index].midi_value = tx_packet.midi_value;
+        } else {
           printk("MIDI Send Packet Queue full.\r\n");
         }
       }
@@ -135,19 +157,6 @@ void adc_parse_thread(void *p1, void *p2, void *p3) {
 K_THREAD_DEFINE(adc_parse_thread_id, ADC_PARSE_TASK_STACK_SIZE,
                 adc_parse_thread, NULL, NULL, NULL, ADC_PARSE_TASK_PRIORITY, 0,
                 0);
-
-// TODO: complete this function
-uint8_t adc_se_read_sequence(uint8_t *arr_ch, uint8_t *arr_values,
-                             uint8_t len) {
-
-  for (uint8_t i = 0; i < len; i++) {
-    if (adc_se_read_channel(arr_ch[i], &arr_values[i]) != 0) {
-      printk("Something went wrong reading ADC channel %d\r\n", arr_ch[i]);
-      return 1;
-    };
-  }
-  return 0;
-}
 
 uint8_t adc_setup() {
   // Verify the hardware bus is ready
