@@ -10,7 +10,7 @@ struct midi_ump construct_packet(uint8_t type, uint8_t group, uint8_t command,
 
 extern struct k_msgq midi_send_msgq;
 
-struct device *midi_setup(void);
+const struct device *midi_setup(void);
 
 struct midi_send_value {
   // Intended to be valid MIDI Channel
