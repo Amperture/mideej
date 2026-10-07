@@ -7,18 +7,20 @@
 #include <zephyr/kernel.h>
 #include <zephyr/sys/printk.h>
 
-// https://www.ti.com/lit/ds/symlink/ads7830.pdf?ts=1790649479286
+// https://www.ti.com/lit/ds/symlink/ads7830.pdf
+// Table 2, page 14
 
 // Currently using the ADS7830 in single-ended mode. Channel selection
 // is a little wonky, but this rearranges the bits as necessary.
 // Run it with an OR operation to bitmask against a command byte.
 #define ADS7830_SE_CHANNEL_SELECT(x) (uint8_t)(((x & 1) << 2 | (x >> 1)) << 4)
+
 #define ADS7830_SINGLE_ENDED_MODE (uint8_t)(1u << 7)
 #define ADS7830_POWER_DOWN_INTREF_AND_ADC 0
 #define ADS7830_POWER_DOWN_INTREF (uint8_t)(1u << 2)
 #define ADS7830_POWER_DOWN_ADC (uint8_t)(2u << 2)
 
-K_MUTEX_DEFINE(adc_mutex);
+K_MUTEX_DEFINE(i2c0_mutex);
 
 // Set up I2C device.
 static const struct i2c_dt_spec ads7830 =
@@ -56,7 +58,7 @@ void adc_read_thread(void *p1, void *p2, void *p3) {
 
   // Make sure the adc is set up
   while (1) {
-    if (k_mutex_lock(&adc_mutex, K_FOREVER) == 0) {
+    if (k_mutex_lock(&i2c0_mutex, K_FOREVER) == 0) {
       for (uint8_t i = 0; i < ARRAY_SIZE(adc_channels_list); i++) {
         tx_packet.index = i;
         tx_packet.channel = adc_channels_list[i];
@@ -66,7 +68,7 @@ void adc_read_thread(void *p1, void *p2, void *p3) {
           printk("ADC Raw Queue full.\r\n");
         }
       }
-      k_mutex_unlock(&adc_mutex);
+      k_mutex_unlock(&i2c0_mutex);
     }
     // K_NO_WAIT: if queue is full, skip or handle immediately
     // May not be needed, if the midi parse thread blocks and is higher
