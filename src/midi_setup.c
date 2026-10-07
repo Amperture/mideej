@@ -18,8 +18,11 @@ const struct device *midi_setup(void) {
 
   // We need to grab the USB device so we can send packets thru it.
   const struct device *mideej_midi = DEVICE_DT_GET(DT_NODELABEL(mideej_midi));
-  while (device_is_ready(mideej_midi) == false) {
-    printk("waiting for MIDI device to get ready\r\n");
+
+  int midi_err = device_is_ready(mideej_midi);
+  if (!midi_err) {
+    printk("Device was not ready. Aboring.\r\n");
+    return NULL;
   }
   return mideej_midi;
 }
